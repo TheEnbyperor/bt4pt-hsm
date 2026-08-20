@@ -1,6 +1,6 @@
-package net.as207960.bt4t.hsm;
+package net.as207960.bt4pt.hsm;
 
-import net.as207960.bt4t.hsm.applet.HelloWorldApplet;
+import net.as207960.bt4pt.hsm.applet.MainApplet;
 import cz.muni.fi.crocs.rcard.client.CardManager;
 import cz.muni.fi.crocs.rcard.client.CardType;
 import cz.muni.fi.crocs.rcard.client.RunConfig;
@@ -13,8 +13,8 @@ import java.util.ArrayList;
 
 
 public class BaseTest {
-    private static String APPLET_AID = "01ffff0405060708090102";
-    private static byte APPLET_AID_BYTE[] = Util.hexStringToByteArray(APPLET_AID);
+    private static final String APPLET_AID = "01ffff0405060708090102";
+    private static final byte[] APPLET_AID_BYTE = Util.hexStringToByteArray(APPLET_AID);
 
     protected CardType cardType = CardType.JCARDSIMLOCAL;
 
@@ -46,24 +46,17 @@ public class BaseTest {
         System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
         System.setProperty("com.licel.jcardsim.sign.dsasigner.computedhash", "1");
 
-        // Set to statically seed RandomData in the applet by "02", hexcoded
-        // System.setProperty("com.licel.jcardsim.randomdata.seed", "02");
-
-        // Set to seed RandomData from the SecureRandom
-        // System.setProperty("com.licel.jcardsim.randomdata.secure", "1");
 
         runCfg.setTestCardType(cardType);
         if (cardType == CardType.REMOTE){
             runCfg.setRemoteAddress("http://127.0.0.1:9901");
 
             runCfg.setRemoteCardType(CardType.PHYSICAL);
-            // runCfg.setRemoteCardType(CardType.JCARDSIMLOCAL);
 
-            runCfg.setAid(APPLET_AID_BYTE);  // performs select after connect
+            runCfg.setAid(APPLET_AID_BYTE);
 
         } else if (cardType != CardType.PHYSICAL && cardType != CardType.PHYSICAL_JAVAX) {
-            // Running in the simulator
-            runCfg.setAppletToSimulate(HelloWorldApplet.class)
+            runCfg.setAppletToSimulate(MainApplet.class)
                     .setTestCardType(CardType.JCARDSIMLOCAL)
                     .setbReuploadApplet(true)
                     .setInstallData(installData);
@@ -91,7 +84,7 @@ public class BaseTest {
     public static CommandAPDU buildApdu(CommandAPDU data){
         return data;
     }
-    
+
     public ResponseAPDU sendCommandWithInitSequence(CardManager cardMngr, String command, ArrayList<String> initCommands) throws CardException {
         if (initCommands != null) {
             for (String cmd : initCommands) {
@@ -99,8 +92,7 @@ public class BaseTest {
             }
         }
 
-        final ResponseAPDU resp = cardMngr.getChannel().transmit(buildApdu(command));
-        return resp;
+        return cardMngr.getChannel().transmit(buildApdu(command));
     }
 
     public CardType getCardType() {

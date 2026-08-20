@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="api_classic_annotations-3.0.5">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/libs-sdks/jc320v26.0_kit/lib/api_classic_annotations-3.0.5.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

@@ -39,8 +39,14 @@ repositories {
     maven(url = "https://javacard.pro/maven")
     maven(url = "https://deadcode.me/mvn")
 
-    flatDir {
-        dirs(libs)
+//    flatDir {
+//        dirs(libs)
+//    }
+}
+
+sourceSets {
+    main {
+        java.srcDir("src/javacard/java")
     }
 }
 
@@ -52,7 +58,7 @@ dependencies {
     testImplementation("org.testng:testng:6.1.1")
     testImplementation("org.slf4j:slf4j-api:1.7.33")
     testImplementation("org.slf4j:slf4j-log4j12:1.7.33")
-    testImplementation("org.apache.logging.log4j:log4j-core:2.17.0")
+    testImplementation("org.apache.logging.log4j:log4j-core:2.25.4")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.1.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.1.1")
@@ -90,7 +96,7 @@ tasks.register("dumpClassPath") {
 }
 
 application {
-    mainClass.set("main.Run")
+    mainClass.set("net.as207960.bt4pt.hsm.main.Run")
 }
 
 tasks.test {
@@ -134,18 +140,20 @@ extensions.getByName("javacard").withGroovyBuilder {
         "addImplicitJcardSimJunit"(false)
 
         "cap" {
-            "packageName"("applet")
+            "packageName"("net.as207960.bt4pt.hsm.applet")
             "version"("0.1")
             "aid"("E8:2B:06:01:04:01:83:B7:64:03:01")
             "output"("applet.cap")
+            "sources"(file("src/javacard/java").absolutePath)
 
             "targetsdk"(JC305)
+            "ints"(true)
 
             // "javaversion"("1.7")
 
             "applet" {
-                "className"("applet.MainApplet")
-                "aid"("E8:2B:06:01:04:01:83:B7:64:03:01")
+                "className"("net.as207960.bt4pt.hsm.applet.MainApplet")
+                "aid"("E8:2B:06:01:04:01:83:B7:64:03:01:00")
             }
 
             // "dependencies" {
