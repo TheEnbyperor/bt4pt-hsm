@@ -11,7 +11,6 @@ import javacard.security.RSAPrivateKey;
 import javacard.security.RandomData;
 import javacardx.crypto.Cipher;
 import net.as207960.bt4pt.hsm.applet.jcmathlib.BigNat;
-import net.as207960.bt4pt.hsm.applet.jcmathlib.OperationSupport;
 import net.as207960.bt4pt.hsm.applet.jcmathlib.ResourceManager;
 
 final class DsaEngine {
@@ -20,6 +19,11 @@ final class DsaEngine {
     private static final short SIGNATURE_LENGTH = (short) 64;
     private static final byte NO_ACTIVE_KEY = (byte) 0x7f;
     private static final byte MAX_SIGN_ATTEMPTS = (byte) 8;
+
+    private static final byte COMPONENT_P = (byte) 0x01;
+    private static final byte COMPONENT_Q = (byte) 0x02;
+    private static final byte COMPONENT_G = (byte) 0x03;
+    private static final byte COMPONENT_Y = (byte) 0x04;
 
     private static final byte[] P = {
         (byte)0x95,(byte)0x47,(byte)0x5c,(byte)0xf5,(byte)0xd9,(byte)0x3e,(byte)0x59,(byte)0x6c,(byte)0x3f,(byte)0xcd,(byte)0x1d,(byte)0x90,(byte)0x2a,(byte)0xdd,(byte)0x02,(byte)0xf4,
@@ -79,35 +83,23 @@ final class DsaEngine {
     private final byte[] a;
     private BigNat qNat, natA, natB, natC, natD;
 
-    boolean initialized = false;
+    boolean initialised = false;
 
-    DsaEngine() {
-        RandomData selectedRandom;
-        try {
-            selectedRandom = RandomData.getInstance(RandomData.ALG_KEYGENERATION);
-        } catch (CryptoException unsupported) {
-            selectedRandom = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
-        }
-        random = selectedRandom;
+    DsaEngine(RandomData random) {
+        this.random = random;
         modExpKey = (RSAPrivateKey) KeyBuilder.buildKey(
             KeyBuilder.TYPE_RSA_PRIVATE, KeyBuilder.LENGTH_RSA_2048, false);
         modExpCipher = Cipher.getInstance(Cipher.ALG_RSA_NOPAD, false);
 
         rsaOutput = transientBytes(P_LENGTH);
         a = transientBytes(Q_LENGTH);
-
-        OperationSupport.getInstance().setCard(OperationSupport.JCOP4_P71);
-        if (!OperationSupport.getInstance().DEFERRED_INITIALIZATION) {
-            initialize();
-        }
     }
 
-    public void initialize() {
-        if (initialized) {
+    public void initialise(ResourceManager math) {
+        if (initialised) {
             return;
         }
 
-        ResourceManager math = new ResourceManager((short) 256);
         qNat = new BigNat(Q_LENGTH, JCSystem.MEMORY_TYPE_PERSISTENT, math);
         qNat.fromByteArray(Q, (short)0, Q_LENGTH);
 
@@ -116,11 +108,10 @@ final class DsaEngine {
         natC = new BigNat(Q_LENGTH, JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT, math);
         natD = new BigNat(Q_LENGTH, JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT, math);
 
-        initialized = true;
+        initialised = true;
     }
 
     void generateKeyPair() {
-        initialize();
         try {
             sampleScalar(a);
             modExp(a, rsaOutput);
@@ -143,10 +134,10 @@ final class DsaEngine {
         byte[] value;
         short length;
         switch (component) {
-            case MainApplet.COMPONENT_P: value = P; length = P_LENGTH; break;
-            case MainApplet.COMPONENT_Q: value = Q; length = Q_LENGTH; break;
-            case MainApplet.COMPONENT_G: value = G; length = P_LENGTH; break;
-            case MainApplet.COMPONENT_Y:
+            case COMPONENT_P: value = P; length = P_LENGTH; break;
+            case COMPONENT_Q: value = Q; length = Q_LENGTH; break;
+            case COMPONENT_G: value = G; length = P_LENGTH; break;
+            case COMPONENT_Y:
                 requireKey(); value = activePublicY(); length = P_LENGTH; break;
             default:
                 ISOException.throwIt(ISO7816.SW_INCORRECT_P1P2); return;
@@ -168,7 +159,6 @@ final class DsaEngine {
 
     void signDigest(byte[]buffer, short offset, short outputOffset) {
         requireKey();
-        initialize();
         try {
             natC.fromByteArray(buffer, offset, Q_LENGTH);
             natC.mod(qNat);
@@ -257,7 +247,7 @@ final class DsaEngine {
         clear(rsaOutput);
         clear(a);
         modExpKey.clearKey();
-        if (initialized) {
+        if (initialised) {
             natA.erase();
             natB.erase();
             natC.erase();

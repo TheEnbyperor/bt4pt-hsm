@@ -2077,7 +2077,7 @@ public class jcmathlib {
                     RSA_PREPEND_ZEROS = true;
                     RSA_RESIZE_MOD = false;
                     EC_HW_XY = true;
-                    EC_HW_ADD = true;
+                    EC_HW_ADD = false;
                     EC_SW_DOUBLE = true;
                     break;
                 case JCOP21:
@@ -2228,10 +2228,10 @@ public class jcmathlib {
                 // ecMultKA = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN, false);
                 ecMultKA = KeyAgreement.getInstance((byte) 3, false);
             }
-            // verifyEcdsa = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
+//            // verifyEcdsa = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
             verifyEcdsa = Signature.getInstance((byte) 33, false);
             if (OperationSupport.getInstance().EC_HW_ADD) {
-                // ecAddKA = KeyAgreement.getInstance(KeyAgreement.ALG_EC_PACE_GM, false);
+//                 ecAddKA = KeyAgreement.getInstance(KeyAgreement.ALG_EC_PACE_GM, false);
                 ecAddKA = KeyAgreement.getInstance((byte) 5, false);
             }
 
