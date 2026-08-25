@@ -13,6 +13,7 @@ public final class MainApplet extends Applet {
     public static final byte INS_GENERATE_KEY = (byte)0x10;
     public static final byte INS_GET_PUBLIC = (byte)0x11;
     public static final byte INS_CLEAR_KEY = (byte)0x12;
+    public static final byte INS_RECONSTRUCT_KEY = (byte)0x13;
     public static final byte INS_CLEAR_TICKET = (byte)0x20;
     public static final byte INS_ADD_DATA = (byte)0x21;
     public static final byte INS_SET_EXPIRY = (byte)0x22;
@@ -23,6 +24,7 @@ public final class MainApplet extends Applet {
     public static final short SW_INVALID_SLOT = (short)0x6A88;
     public static final short SW_SLOT_EMPTY = (short)0x6984;
     public static final short SW_SLOT_OCCUPIED = (short)0x6985;
+    public static final short SW_SLOT_NOT_CERTIFIED = (short)0x6986;
     public static final short SW_TOO_MANY_ELEMENTS = (short)0x6A84;
     public static final short SW_NO_DATA = (short)0x6987;
 
@@ -118,6 +120,10 @@ public final class MainApplet extends Applet {
                 clearKey(apdu);
                 return;
 
+            case INS_RECONSTRUCT_KEY:
+                reconstructKey(apdu);
+                return;
+
             case INS_CLEAR_TICKET:
                 clearTicket(apdu);
                 return;
@@ -170,6 +176,21 @@ public final class MainApplet extends Applet {
         requireNoIncomingData(apdu);
         byte slot = buffer[ISO7816.OFFSET_P1];
         ecknr.clearSlot(slot);
+    }
+
+    private void reconstructKey(APDU apdu) {
+        byte[] buffer = apdu.getBuffer();
+        requireP2Zero(buffer);
+        byte slot = buffer[ISO7816.OFFSET_P1];
+        short length = receiveAll(apdu, outputBuffer, (short)0);
+        if (length != (ECKNREngine.SCALAR_SIZE * 2)) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        ecknr.receiveCertificate(
+                slot,
+                outputBuffer, (short)0, ECKNREngine.SCALAR_SIZE,
+                outputBuffer, ECKNREngine.SCALAR_SIZE, ECKNREngine.SCALAR_SIZE
+        );
     }
 
     private void clearTicket(APDU apdu) {

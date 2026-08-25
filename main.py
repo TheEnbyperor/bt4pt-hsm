@@ -1,3 +1,4 @@
+import hashlib
 import time
 import asn1tools
 import ecknr
@@ -6,8 +7,8 @@ import smartcard.System
 
 PROTO = asn1tools.compile_files(["../bt4pt-asn1/asn1/bt4pt_barcode_header.asn", "../bt4pt-asn1/asn1/bt4pt_general_elements.asn"], codec="per")
 
-AID = bytes.fromhex("E82B0601040183B764030100")
 
+AID = bytes.fromhex("E82B0601040183B764030100")
 class RequestAPDU:
     instruction_class: int
     instruction: int
@@ -122,6 +123,9 @@ def select_application(aid: bytes):
     )
 
 def main():
+    ca_key = ecknr.Secp256K1PrivateKey.generate()
+    ca_public_key = ca_key.public_key()
+
     reader = smartcard.System.readers()[0]
     print("Reader:", reader)
     with reader.createConnection() as conn:
@@ -168,6 +172,21 @@ def main():
         print("EC public key:", resp.data.hex())
 
         public_key = ecknr.Secp256K1PublicKey.from_sec1(b"\x04" + resp.data)
+
+        end_entity_certificate = b"TEST DATA"
+        end_entity_certificate_hash = hashlib.sha256(end_entity_certificate).digest()
+
+        temp_signing_key = ecknr.Secp256K1PrivateKey.generate()
+        cert_public_key = temp_signing_key.public_key().gen_ecqcv_public_key(public_key)
+        private_key_contribution = temp_signing_key.gen_ecqcv_private_key_contribution(ca_key, cert_public_key, end_entity_certificate)
+
+        resp = apdu(conn, RequestAPDU(
+            instruction_class=0x80, instruction=0x13,
+            p1=key_slot, p2=0x00,
+            data=end_entity_certificate_hash + private_key_contribution, expected_response_length=256
+        ))
+        if not resp.is_success():
+            raise RuntimeError(f"Failed to reconstruct key from contribution: {resp.sw1:02x} {resp.sw2:02x}")
 
         resp = apdu(conn, RequestAPDU(
             instruction_class=0x80, instruction=0x20,
@@ -232,7 +251,9 @@ def main():
         print(f"Duration:", t)
 
         signature = ecknr.Signature(resp.data[0:32], resp.data[32:64], resp.data[64:])
-        issuer_data = public_key.verify(signature)
+        extracted_public_key = cert_public_key.ecqcv_extract_public_key(ca_public_key, end_entity_certificate)
+
+        issuer_data = extracted_public_key.verify(signature)
         print(f"Issuer data:", issuer_data.hex())
 
         with open("barcode-data.per", "wb") as f:

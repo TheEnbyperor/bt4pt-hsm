@@ -12,6 +12,12 @@ import net.as207960.bt4pt.hsm.applet.jcmathlib.ResourceManager;
 final class ECKNREngine {
     public static final byte SLOT_COUNT = 8;
 
+    static final byte SLOT_EMPTY     = 0;
+    static final byte SLOT_REQUESTED = 1;
+    static final byte SLOT_CERTIFIED = 2;
+
+    private final byte[] slotState;
+
     public static final short SCALAR_SIZE = 32;
 
     private static final byte[] MGF_COUNTER_1 = {
@@ -46,6 +52,7 @@ final class ECKNREngine {
                 MessageDigest.ALG_SHA_256,
                 false
         );
+        slotState = new byte[SLOT_COUNT];
     }
 
     public void initialise(ResourceManager math) {
@@ -87,6 +94,11 @@ final class ECKNREngine {
 
     void generateKeyPair(byte slot) {
         checkSlot(slot);
+
+        if (slotState[slot] != SLOT_EMPTY) {
+            ISOException.throwIt(MainApplet.SW_SLOT_OCCUPIED);
+        }
+
         BigNat privateKey = privateKeys[slot];
         if (!privateKey.isZero()) {
             ISOException.throwIt(MainApplet.SW_SLOT_OCCUPIED);
@@ -97,27 +109,24 @@ final class ECKNREngine {
             privateKey.fromByteArray(work, (short)0, SCALAR_SIZE);
             privateKey.mod(order);
         } while (privateKey.isZero());
+
+        slotState[slot] = SLOT_REQUESTED;
     }
 
     void clearSlot(byte slot) {
         checkSlot(slot);
         privateKeys[slot].erase();
         privateKeys[slot].setSize(SCALAR_SIZE);
+        slotState[slot] = SLOT_EMPTY;
     }
 
     private BigNat selectKey(byte slot) {
         checkSlot(slot);
         BigNat privateKey = privateKeys[slot];
-        if (privateKey.isZero()) {
-            ISOException.throwIt(
-                    MainApplet.SW_SLOT_EMPTY
-            );
+        if (slotState[slot] == SLOT_EMPTY) {
+            ISOException.throwIt(MainApplet.SW_SLOT_EMPTY);
         }
-        publicKey.setW(
-                SecP256k1.G,
-                (short)0,
-                (short)SecP256k1.G.length
-        );
+        publicKey.setW(SecP256k1.G, (short)0, (short)SecP256k1.G.length);
         publicKey.multiplication(privateKey);
         return privateKey;
     }
@@ -133,12 +142,67 @@ final class ECKNREngine {
         return (short)(SCALAR_SIZE * 2);
     }
 
+    void receiveCertificate(
+            byte slot,
+            byte[] certificateHash,
+            short hashOffset,
+            short hashLength,
+            byte[] reconstructionValue,
+            short reconstructionOffset,
+            short reconstructionLength
+    ) {
+        if (hashLength != SCALAR_SIZE || reconstructionLength != SCALAR_SIZE) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+
+        checkSlot(slot);
+        BigNat privateKey = privateKeys[slot];
+        if (slotState[slot] == SLOT_EMPTY) {
+            ISOException.throwIt(MainApplet.SW_SLOT_EMPTY);
+        }
+        if (slotState[slot] != SLOT_REQUESTED) {
+            ISOException.throwIt(MainApplet.SW_SLOT_OCCUPIED);
+        }
+
+        t.setSize(SCALAR_SIZE);
+        t.fromByteArray(certificateHash, hashOffset, SCALAR_SIZE);
+        t.mod(order);
+
+        tmp.clone(privateKey);
+        tmp.modMult(t, order);
+
+        s.setSize(SCALAR_SIZE);
+        s.fromByteArray(reconstructionValue, reconstructionOffset, SCALAR_SIZE);
+        if (s.isZero() || !s.isLesser(order)) {
+            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+        }
+
+        s.modAdd(tmp, order);
+        if (s.isZero()) {
+            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+        }
+
+        JCSystem.beginTransaction();
+        try {
+            privateKey.setSize(SCALAR_SIZE);
+            privateKey.copy(s);
+            slotState[slot] = SLOT_CERTIFIED;
+            JCSystem.commitTransaction();
+        } catch (Exception e) {
+            JCSystem.abortTransaction();
+            throw e;
+        }
+    }
+
     short sign(
             byte slot,
             byte[] buffer,
             short messageLength
     ) {
         BigNat privateKey = selectKey(slot);
+        if (slotState[slot] != SLOT_CERTIFIED) {
+            ISOException.throwIt(MainApplet.SW_SLOT_NOT_CERTIFIED);
+        }
 
         short recoverableLen = messageLength < SCALAR_SIZE ? messageLength : SCALAR_SIZE;
         short remainderLen = (short) (messageLength - recoverableLen);

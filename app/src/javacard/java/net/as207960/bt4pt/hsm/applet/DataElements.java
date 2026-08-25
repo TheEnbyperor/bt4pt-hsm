@@ -14,7 +14,7 @@ final class DataElements {
     static final byte KEY_ED25519   = 5;
     static final byte KEY_ED448     = 6;
 
-    static final byte MAX_ELEMENTS = 15;
+    static final byte MAX_ELEMENTS = 16;
     static final short BUFFER_SIZE = 600;
 
     // Data contains [format][value][format][value]...
